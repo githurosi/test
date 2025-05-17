@@ -26,6 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # 1. 检出目标仓库（保持原有逻辑）
       - name: 检出当前仓库
         uses: actions/checkout@v4
         with:
@@ -33,15 +34,16 @@ jobs:
           fetch-depth: 0
           path: worker-repo
 
+      # 2. 优化后的预安装依赖（整合代码2的加速方案）
       - name: 预安装依赖（加速版）
         run: |
-          # 配置阿里云镜像源
+          # 阿里云镜像加速
           echo "deb http://mirrors.aliyun.com/ubuntu/ focal main restricted universe multiverse" | sudo tee /etc/apt/sources.list
           echo "deb http://mirrors.aliyun.com/ubuntu/ focal-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
           echo "deb http://mirrors.aliyun.com/ubuntu/ focal-backports main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
           echo "deb http://mirrors.aliyun.com/ubuntu/ focal-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
           
-          # 加速配置
+          # 连接优化配置
           echo 'Acquire::ForceIPv4 "true";' | sudo tee /etc/apt/apt.conf.d/99force-ipv4
           echo 'APT::Acquire::Retries "3";' | sudo tee -a /etc/apt/apt.conf.d/99force-ipv4
           
@@ -56,6 +58,7 @@ jobs:
           # 安装javascript-obfuscator（保持原有逻辑）
           npm install -g javascript-obfuscator@4.0.0
 
+      # 3. 版本检查逻辑（来自代码2）
       - name: 检查并准备更新
         id: update
         env:
@@ -104,6 +107,7 @@ jobs:
           total_time=$(( $(date +%s) - start_time ))
           log "INFO" "版本检查耗时: ${total_time}秒"
 
+      # 4. 下载混淆流程（保持代码1原有逻辑）
       - name: 下载并验证Worker文件
         if: steps.update.outputs.new_version != steps.update.outputs.old_version
         run: |
@@ -157,7 +161,7 @@ jobs:
             --dead-code-injection-threshold 0.5 \
             --identifier-names-generator mangled \
             --string-array true \
-            --string-array-encoding 'rc4
+            --string-array-encoding 'rc4' \
             --string-array-threshold 0.75 \
             --transform-object-keys true \
             --self-defending true \
@@ -165,6 +169,7 @@ jobs:
           
           mv _worker.obfuscated.js _worker.js
  
+      # 5. 提交更改（整合代码2的变更日志）
       - name: 验证与提交
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
