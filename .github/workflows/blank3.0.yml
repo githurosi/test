@@ -1,0 +1,110 @@
+name: Auto Update Worker
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "0 1 * * *" # 🌇 北京时间9点（UTC+8）对应UTC时间1点
+  workflow_dispatch:
+    inputs:
+      force_update:
+        description: '是否强制更新（忽略版本检查）'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      new_version: ${{ steps.update.outputs.new_version }}
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          path: worker-repo
+
+      - name: 预安装依赖
+        run: sudo apt-get update && sudo apt-get install -y pigz jq
+
+      - name: 检查并更新 Worker
+        id: update
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          start_time=$(date +%s)
+          
+          log() { 
+            local level=$1
+            shift
+            echo "[$(date +'%Y-%m-%d %H:%M:%S')] [$level] $@"
+          }
+          
+          # 初始化变量
+          FORCE_UPDATE=${{ inputs.force_update }}
+          LOCAL_VERSION=$(cat worker-repo/version.txt 2>/dev/null || echo "")
+          log "INFO" "开始检查更新..."
+          log "DEBUG" "本地版本: ${LOCAL_VERSION:-无}"
+          
+          # 获取最新版本
+          REPO_URL="https://api.github.com/repos/bia-pain-bache/BPB-Worker-Panel/releases"
+          RESPONSE=$(curl -s --retry 3 \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "$REPO_URL")
+          
+          # 解析版本信息
+          TAG_NAME=$(echo "$RESPONSE" | jq -r '.[0].tag_name')
+          DOWNLOAD_URL=$(echo "$RESPONSE" | jq -r '.[0].assets[] | select(.name == "worker.zip") | .browser_download_url')
+          RELEASE_NOTES=$(echo "$RESPONSE" | jq -r '.[0].body')
+          
+          # 版本比较
+          if [ "$LOCAL_VERSION" = "$TAG_NAME" ] && [ "$FORCE_UPDATE" != "true" ]; then
+            log "INFO" "已是最新版本，无需更新"
+            echo "new_version=$LOCAL_VERSION" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # 准备更新内容
+          log "INFO" "检测到新版本: $TAG_NAME"
+          log "INFO" "更新内容预览：$(echo "$RELEASE_NOTES" | head -n 3 | tr -d '\n')..."
+          
+          # 下载更新并解压到根目录
+          wget -q -O worker.zip "$DOWNLOAD_URL"
+          unzip -o worker.zip -d worker-repo/
+          rm worker.zip
+          
+          # 更新版本文件和更新日志
+          echo "$TAG_NAME" > worker-repo/version.txt
+          echo "$RELEASE_NOTES" > worker-repo/changelog.md
+          
+          # 提交信息
+          log "INFO" "更新完成，新版本: $TAG_NAME"
+          echo "new_version=$TAG_NAME" >> $GITHUB_OUTPUT
+          
+          # 性能统计
+          total_time=$(( $(date +%s) - start_time ))
+          log "INFO" "总执行时间: ${total_time}秒"
+      - name: 提交更改
+        if: always()
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          repository: worker-repo
+          commit_message: |
+            🔄 自动同步 Worker 版本: ${{ steps.update.outputs.new_version }}
+            
+            更新内容：
+            $(cat worker-repo/changelog.md | head -n 5 | sed 's/^/    /')
+          branch: main
+          file_pattern: "version.txt changelog.md *.js"
