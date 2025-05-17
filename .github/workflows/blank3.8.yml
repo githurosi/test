@@ -9,7 +9,11 @@ on:
   workflow_dispatch:
     inputs:
       force_update:
-        description: '是否强制更新（忽略版本和内容检查）'
+        description: '强制更新（覆盖所有检查）'
+        type: boolean
+        default: false
+      rebuild_readme:
+        description: '重建README（保留版本历史）'
         type: boolean
         default: false
 
@@ -56,10 +60,18 @@ jobs:
           
           # 初始化变量
           FORCE_UPDATE=${{ inputs.force_update }}
+          REBUILD_README=${{ inputs.rebuild_readme }}
           LOCAL_VERSION=$(cat worker-repo/version.txt 2>/dev/null || echo "")
           log "INFO" "开始检查更新..."
           log "DEBUG" "本地版本: ${LOCAL_VERSION:-无}"
           
+          # 新增：README完整性检查
+          README_PATH="worker-repo/README.md"
+          if [ -f "$README_PATH" ] && ! grep -q "## 📅 最新更新：" "$README_PATH"; then
+            log "WARN" "检测到README格式异常，触发重建流程"
+            REBUILD_README=true
+          fi
+
           # 获取最新版本
           REPO_URL="https://api.github.com/repos/bia-pain-bache/BPB-Worker-Panel/releases"
           RESPONSE=$(curl -s --retry 3 \
@@ -72,28 +84,34 @@ jobs:
           DOWNLOAD_URL=$(echo "$RESPONSE" | jq -r '.[0].assets[] | select(.name == "worker.zip") | .browser_download_url')
           RELEASE_NOTES=$(echo "$RESPONSE" | jq -r '.[0].body')
           
-          # 版本比较
-          if [ "$LOCAL_VERSION" = "$TAG_NAME" ] && [ "$FORCE_UPDATE" != "true" ]; then
-            log "INFO" "版本无变化，跳过更新"
+          # 更新条件判断
+          UPDATE_CONDITION="false"
+          if [ "$FORCE_UPDATE" = "true" ]; then
+            UPDATE_CONDITION="true"
+          elif [ "$REBUILD_README" = "true" ]; then
+            UPDATE_CONDITION="true"
+          elif [ "$LOCAL_VERSION" != "$TAG_NAME" ]; then
+            UPDATE_CONDITION="true"
+          else
+            # 内容去重检查（仅当版本相同时执行）
+            if [ -f "worker-repo/changelog.md" ]; then
+              EXISTING_NOTES=$(tail -n +2 worker-repo/changelog.md)
+              if [[ ! "$RELEASE_NOTES" == *"$EXISTING_NOTES"* ]]; then
+                UPDATE_CONDITION="true"
+              fi
+            fi
+          fi
+
+          if [ "$UPDATE_CONDITION" = "false" ]; then
+            log "INFO" "无更新需求，跳过流程"
             echo "new_version=$LOCAL_VERSION" >> $GITHUB_OUTPUT
             echo "should_update=false" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
-          # 内容去重检查
-          if [ -f "worker-repo/changelog.md" ]; then
-            EXISTING_NOTES=$(tail -n +2 worker-repo/changelog.md)  # 跳过第一行标题
-            if [[ "$RELEASE_NOTES" == *"$EXISTING_NOTES"* ]]; then
-              log "INFO" "更新内容已存在，跳过更新"
-              echo "new_version=$TAG_NAME" >> $GITHUB_OUTPUT
-              echo "should_update=false" >> $GITHUB_OUTPUT
-              exit 0
-            fi
-          fi
 
           # 准备更新内容
-          log "INFO" "检测到新版本: $TAG_NAME"
-          log "INFO" "更新内容预览：$(echo "$RELEASE_NOTES" | head -n 3 | tr -d '\n')..."
+          log "INFO" "检测到更新需求，开始处理..."
+          log "INFO" "更新类型：${FORCE_UPDATE:-$REBUILD_README:-常规更新}"
           
           # 下载更新并解压到根目录
           wget -q -O worker.zip "$DOWNLOAD_URL"
@@ -104,37 +122,27 @@ jobs:
           echo "$TAG_NAME" > worker-repo/version.txt
           echo "$RELEASE_NOTES" > worker-repo/changelog.md
           
-          # 安全更新README.md（主页格式）
-          README_PATH="worker-repo/README.md"
-          
-          # 初始化README（如果不存在）
-          if [ ! -f "$README_PATH" ]; then
-            log "INFO" "初始化README.md文件..."
+          # 安全更新README.md（增强版）
+          # 初始化或重建逻辑
+          if [ ! -f "$README_PATH" ] || [ "$REBUILD_README" = "true" ]; then
+            log "INFO" "初始化/重建README.md文件..."
             {
               echo "# 项目更新日志"
               echo ""
-              echo "## 最新版本"
-              echo "暂无更新记录"
+              echo "## 📅 最新更新：$TAG_NAME"
+              echo ""
+              echo "$(echo "$RELEASE_NOTES" | sed 's/^/- /g' | head -n 8)"
+              echo ""
+              echo "> 完整日志请查看 [CHANGELOG.md](./changelog.md)"
             } > "$README_PATH"
+          else
+            # 常规更新逻辑
+            sed -i "0,/## 📅 最新更新：/{/## 📅 最新更新：/ r /dev/stdin" "$README_PATH" <<< "## 📅 最新更新：$TAG_NAME"
+            sed -i "/## 📅 最新更新：/,/^$/ { /^$/ d; }" "$README_PATH"
+            echo "$RELEASE_NOTES" | sed 's/^/- /g' | head -n 8 >> "$README_PATH"
+            echo "" >> "$README_PATH"
+            echo "> 完整日志请查看 [CHANGELOG.md](./changelog.md)" >> "$README_PATH"
           fi
-
-          # 确保文件可写
-          chmod +w "$README_PATH" 2>/dev/null || true
-
-          # 生成更新内容（changelog风格）
-          UPDATE_CONTENT=$(cat <<EOF
-          ## 📅 最新更新：$TAG_NAME
-          
-          $(echo "$RELEASE_NOTES" | sed 's/^/- /g' | head -n 8)
-          
-          > 完整日志请查看 [CHANGELOG.md](./changelog.md)
-          
-          EOF
-          )
-
-          # 替换主页更新内容（保持文件开头）
-          sed -i "0,/## 📅 最新更新：/{/## 📅 最新更新：/ r /dev/stdin" "$README_PATH" <<< "$UPDATE_CONTENT"
-          sed -i "/## 📅 最新更新：/,/^$/ { /^$/ d; }" "$README_PATH"  # 删除旧版本内容
 
           # 提交信息
           log "INFO" "更新完成，新版本: $TAG_NAME"
@@ -145,17 +153,15 @@ jobs:
           total_time=$(( $(date +%s) - start_time ))
           log "INFO" "总执行时间: ${total_time}秒"
 
-      - name: 混淆Worker代码（条件执行）
+          - name: 混淆Worker代码（条件执行）
         if: ${{ steps.update.outputs.should_update == 'true' || inputs.force_update == 'true' }}
         run: |
           set -euo pipefail
           cd worker-repo
-          
-          # 创建临时工作目录
+
           mkdir -p tmp
           cp _worker.js tmp/
-          
-          # 执行混淆
+
           javascript-obfuscator tmp/_worker.js \
             --output _worker.obfuscated.js \
             --compact true \
@@ -170,11 +176,10 @@ jobs:
             --transform-object-keys true \
             --self-defending true \
             --domain-lock 'your-domain.com'
-          
-          # 替换原文件
+
           mv _worker.obfuscated.js _worker.js
           rm -rf tmp
- 
+
       - name: 提交更改（条件执行）
         if: ${{ steps.update.outputs.should_update == 'true' || inputs.force_update == 'true' }}
         uses: stefanzweifel/git-auto-commit-action@v5
@@ -182,10 +187,10 @@ jobs:
           repository: worker-repo
           commit_message: |
             🔄 自动同步 Worker 版本: ${{ steps.update.outputs.new_version }}
-             
+
             更新内容：
             $(cat worker-repo/changelog.md | head -n 5 | sed 's/^/    /')
-            
+
             ${{ inputs.force_update == 'true' && '🔄 强制更新模式' || '' }}
           commit_author: "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
           branch: main
