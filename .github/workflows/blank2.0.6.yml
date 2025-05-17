@@ -39,7 +39,7 @@ jobs:
           sudo apt-get install -y -qq jq
 
       # 2. 版本检测引擎（增强版）
-      - name: 检查Worker版本并提取日志
+      - name: 检查Worker版本并更新日志
         id: version_check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -80,21 +80,33 @@ jobs:
           # 准备更新元数据
           log "INFO" "检测到新版本: $TAG_NAME"
           echo "$TAG_NAME" > version.txt
+          echo "$RELEASE_NOTES" > changelog.md
           
-          # 提取格式化日志（新增功能）
+          # 生成README更新内容（新增功能）
           FORMATTED_LOG=$(echo "$RELEASE_NOTES" | sed -E 's/(#+ \[[0-9.]+\])/## \1/g' | head -n 8)
-          echo "$FORMATTED_LOG" > changelog.md
+          cat > update_content.tmp <<EOF
+          ## 最新更新 ($TAG_NAME)
           
-          # 生成主页内容（新增功能）
-          cat > index.md <<EOF
-          # 最新更新日志
-          
-          ## 版本 $TAG_NAME
-          
+          \`\`\`markdown
           $(echo "$FORMATTED_LOG" | sed 's/^/    /')
-          
-          [查看完整更新历史](README.md)
+          \`\`\`
           EOF
+
+          # 安全更新README.md（新增功能）
+          if [ -s update_content.tmp ]; then
+            cp README.md README.md.bak
+            awk '
+              /<!-- UPDATE_LOG -->/ {
+                print
+                print "<!-- BEGIN_AUTO_UPDATE -->"
+                system("cat update_content.tmp")
+                print "<!-- END_AUTO_UPDATE -->"
+                next
+              }
+              { print }
+            ' README.md.bak > README.md
+            rm update_content.tmp README.md.bak
+          fi
           
           echo "new_version=$TAG_NAME" >> $GITHUB_OUTPUT
           
@@ -102,7 +114,7 @@ jobs:
           total_time=$(( $(date +%s) - start_time ))
           log "INFO" "版本检测耗时: ${total_time}秒"
 
-      # 3. 条件触发混淆流程
+      # 3. 条件触发混淆流程（仅当有更新时执行）
       - name: 执行混淆更新
         if: steps.version_check.outputs.new_version != '0.0.0'
         run: |
@@ -137,5 +149,5 @@ jobs:
           commit_author: "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
           branch: main
           push_options: "--force-with-lease"
-          file_pattern: "version.txt changelog.md *.js index.md"
+          file_pattern: "version.txt changelog.md *.js README.md"
           skip_fetch: true
