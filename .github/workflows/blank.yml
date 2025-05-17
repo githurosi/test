@@ -1,120 +1,29 @@
-名称：自动更新工作程序
+# 定时+手动触发同步工作流
+名称：每日同步工作流
 
 开：
-  推送：
-    分支：
-      - 主要
-  时间表：
-    - cron： “0 1 * * *” # 🌇 北京时间9点（UTC+8）对应UTC时间1点
-  workflow_dispatch：
-    输入：
-      force_update：
-        description： '是否强制更新（忽略版本检查）'
-        类型：布尔值
-        默认值：False
+  # 定时触发（北京时间9点/UTC+8）
+  时间表:
+    - cron: "0 1 * * *"  # 对应UTC时间1:00
+  
+  # 手动触发配置
+  workflow_dispatch:
+    输入:
+      force_sync:
+        description: '强制立即同步（可选）'
+        类型: 布尔值
+        默认值: false
 
-权限：
-  内容： 写入
-  id-token：写入
-
-并发：
-  组： ${{ github.workflow }}-${{ github.ref }}
-  正在取消：true
-
-工作机会：
-  更新：
-    运行时间：ubuntu-latest
-    超时分钟数：5
-    输出：
-      new_version： ${{ steps.update.outputs.new_version }}
-    步骤：
-      - 名称： 检出仓库
-        用途：作/checkout@v4
-        替换为：
-          获取深度：1
-          路径： worker-repo
-
-      - name： 预安装依赖
-        运行： |
-sudo apt-get 更新
-sudo apt-get install -y pigz jq translate-shell
-      - name： 检查并更新 Worker
-        ID：更新
-        环境：
-          GITHUB_TOKEN：${{ secrets。GITHUB_TOKEN }}
-        运行： |
-设置 -euo pipefail
-start_time=$（日期 +%s）
+工作机会:
+  同步任务:
+    运行时间: ubuntu-latest
+    步骤:
+      - 名称: 执行同步操作
+        运行: |
+          echo "🕒 定时同步任务启动（北京时间9点）"
+          echo "🔄 正在执行同步操作..."
           
-日志（） {
-本地级别 = $1
-转变
-echo “[$（date +'%Y-%m-%d %H：%M：%S'）] [$level] $@”
-          }
+          # 这里可以添加实际同步逻辑
+          # 示例：curl -X POST https://api.example.com/sync
           
-# 初始化变量
-FORCE_UPDATE=${{ inputs.force_update }}
-LOCAL_VERSION=$（cat worker-repo/version.txt 2>/dev/null || echo “”）
-log “INFO” “开始检查更新...”
-log “DEBUG” “本地版本： ${LOCAL_VERSION：-无}”
-          
-# 获取最新版本
-REPO_URL=“https://api.github.com/repos/bia-pain-bache/BPB-Worker-Panel/releases”
-响应=$（curl -s --retry 3 \
--H “授权：token $GITHUB_TOKEN” \
--H “接受：application/vnd.github.v3+json” \
-“$REPO_URL”）
-          
-# 解析版本信息
-TAG_NAME=$（echo “$RESPONSE” | jq -r '.[0].tag_name'）
-DOWNLOAD_URL=$（echo “$RESPONSE” | jq -r '.[0].assets[] |select（.name == “worker.zip”） | .browser_download_url'）
-RELEASE_NOTES=$（echo “$RESPONSE” | jq -r '.[0].body'）
-          
-# 版本比较
-if [ “$LOCAL_VERSION” = “$TAG_NAME” ] & & [ “$FORCE_UPDATE” ！= “true” ];然后
-log “INFO” “已是最新版本，无需更新”
-echo “new_version=$LOCAL_VERSION” >> $GITHUB_OUTPUT
-出口 0
-fi
-          
-# 准备更新内容
-log “INFO” “检测到新版本： $TAG_NAME”
-log “INFO” “正在翻译更新日志...”
-          
-# 翻译更新日志
-TRANSLATED_NOTES=$（echo “$RELEASE_NOTES” | trans -b -e google -t zh-CN）
-          
-# 生成Markdown格式内容
-FORMATTED_NOTES=$（echo “$TRANSLATED_NOTES” | sed 's/^/ /'）
-          
-# 更新文件
-echo “$TAG_NAME” > worker-repo/version.txt
-echo “$TRANSLATED_NOTES” > worker-repo/changelog.md
-          
-# 自动追加到README
-echo “正在将更新日志追加到README...”
-echo “” >> worker-repo/README.md
-echo “## 更新日志 📝 ” >> worker-repo/README.md
-echo “### $TAG_NAME” >> worker-repo/README.md
-echo “$FORMATTED_NOTES” >> worker-repo/README.md
-echo “---” >> worker-repo/README.md
-          
-# 提交信息
-log “INFO” “更新完成，新版本： $TAG_NAME”
-echo “new_version=$TAG_NAME” >> $GITHUB_OUTPUT
-          
-# 性能统计
-total_time=$（（ $（date +%s） - start_time ））
-log “INFO” “总执行时间： ${total_time}秒”
-      - name： 提交更改
-        如果： always（）
-        用途： stefanzweifel/git-auto-commit-action@v5
-        替换为：
-          仓库： worker-repo
-          commit_message： |
-🔄 自动同步 Worker 版本： ${{ steps.update.outputs.new_version }}
-            
-更新内容：
-$（cat worker-repo/changelog.md | head -n 5 | sed 's/^/ /'）
-          分支：main
-          file_pattern：“version.txt changelog.md README.md *.js”
+          echo "✅ 同步操作完成"
