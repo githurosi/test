@@ -153,7 +153,7 @@ jobs:
           total_time=$(( $(date +%s) - start_time ))
           log "INFO" "总执行时间: ${total_time}秒"
 
-          - name: 混淆Worker代码（条件执行）
+      - name: 混淆Worker代码（条件执行）
         if: ${{ steps.update.outputs.should_update == 'true' || inputs.force_update == 'true' }}
         run: |
           set -euo pipefail
