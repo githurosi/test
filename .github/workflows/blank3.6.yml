@@ -104,7 +104,7 @@ jobs:
           echo "$TAG_NAME" > worker-repo/version.txt
           echo "$RELEASE_NOTES" > worker-repo/changelog.md
           
-          # 安全更新README.md（增强版）
+          # 安全更新README.md（主页格式）
           README_PATH="worker-repo/README.md"
           
           # 初始化README（如果不存在）
@@ -113,30 +113,28 @@ jobs:
             {
               echo "# 项目更新日志"
               echo ""
-              echo "<!-- UPDATE_LOG -->"
-              echo "<!-- 最新更新将显示在此处 -->"
+              echo "## 最新版本"
+              echo "暂无更新记录"
             } > "$README_PATH"
           fi
 
           # 确保文件可写
           chmod +w "$README_PATH" 2>/dev/null || true
 
-          # 生成更新内容
+          # 生成更新内容（changelog风格）
           UPDATE_CONTENT=$(cat <<EOF
-          ## 更新日志 📝
-          ### $TAG_NAME
-          $(echo "$RELEASE_NOTES" | sed 's/^/    /' | head -n 8)
-          ---
+          ## 📅 最新更新：$TAG_NAME
+          
+          $(echo "$RELEASE_NOTES" | sed 's/^/- /g' | head -n 8)
+          
+          > 完整日志请查看 [CHANGELOG.md](./changelog.md)
+          
           EOF
           )
 
-          # 使用cat进行安全的内容追加
-          {
-            echo ""
-            echo "<!-- BEGIN_AUTO_UPDATE -->"
-            echo "$UPDATE_CONTENT"
-            echo "<!-- END_AUTO_UPDATE -->"
-          } >> "$README_PATH"
+          # 替换主页更新内容（保持文件开头）
+          sed -i "0,/## 📅 最新更新：/{/## 📅 最新更新：/ r /dev/stdin" "$README_PATH" <<< "$UPDATE_CONTENT"
+          sed -i "/## 📅 最新更新：/,/^$/ { /^$/ d; }" "$README_PATH"  # 删除旧版本内容
 
           # 提交信息
           log "INFO" "更新完成，新版本: $TAG_NAME"
