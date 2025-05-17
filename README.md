@@ -1,4 +1,3 @@
-# 项目更新日志
 
 <!-- UPDATE_LOG -->
 <!-- BEGIN_AUTO_UPDATE -->
