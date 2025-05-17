@@ -12,28 +12,29 @@ on:  # 触发配置开启
         description: 'Force immediate sync'  # 强制同步
         type: boolean  # 参数类型
         default: false  # 默认值
-        
-#标签同步代码
-- name: Sync Latest Version Tag
-  id: sync-version-tag
-  env:
-    REPO_URL: "https://api.github.com/repos/bia-pain-bache/BPB-Worker-Panel/releases"
-  run: |
-    # 获取最新版本号
-    LATEST_TAG=$(curl -s --retry 3 \
-      -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-      -H "Accept: application/vnd.github.v3+json" \
-      "$REPO_URL" | jq -r '.[0].tag_name')
-    
-    # 写入版本文件
-    echo "$LATEST_TAG" > worker-repo/version.txt
-    echo "new_version=$LATEST_TAG" >> $GITHUB_OUTPUT
-#标签同步代码结束
 
 jobs:  # 工作定义
   test-job:  # 作业配置
     runs-on: ubuntu-latest  # 运行系统环境
+    
     steps:  # 步骤序列
+      # 新增：同步最新版本标签步骤
+      - name: Sync Latest Version Tag
+        id: sync-version-tag
+        env:
+          REPO_URL: "https://api.github.com/repos/bia-pain-bache/BPB-Worker-Panel/releases"
+        run: |
+          # 获取最新版本号
+          LATEST_TAG=$(curl -s --retry 3 \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "$REPO_URL" | jq -r '.[0].tag_name')
+          
+          # 写入版本文件
+          echo "$LATEST_TAG" > worker-repo/version.txt
+          echo "new_version=$LATEST_TAG" >> $GITHUB_OUTPUT
+
+      # 原有打印信息步骤
       - name: Print trigger info  # 步骤日志标识
         run: |  # 执行命令
           echo "Workflow triggered at $(date)"  # 输出带时间戳的触发信息
