@@ -95,30 +95,24 @@ jobs:
           - [查看完整日志](./changelog.md)
           EOF
 
-          # 安全更新README.md（增强初始化逻辑）
+          # 安全更新README.md（终极初始化方案）
           if [ ! -f "README.md" ]; then
-            log "INFO" "初始化README.md文件"
-            touch README.md
-            echo "# 项目更新日志" > README.md
-            echo "" >> README.md
+            log "INFO" "正在初始化README.md文件..."
+            {
+              echo "# 项目更新日志"
+              echo ""
+              echo "<!-- UPDATE_LOG -->"
+              echo "<!-- 最新更新将显示在此处 -->"
+            } > README.md
           fi
 
-          if [ -s update_content.tmp ]; then
-            [ ! -w README.md ] && sudo chmod +w README.md
-            cp README.md README.md.bak || exit 1
-            awk '
-              /<!-- UPDATE_LOG -->/ {
-                print
-                print "<!-- BEGIN_AUTO_UPDATE -->"
-                system("cat update_content.tmp")
-                print "<!-- END_AUTO_UPDATE -->"
-                next
-              }
-              { print }
-            ' README.md.bak > README.md
-            rm update_content.tmp README.md.bak
-          fi
-          
+          # 确保文件可写
+          chmod +w README.md 2>/dev/null || true
+
+          # 使用sed进行安全替换
+          sed -i '/<!-- UPDATE_LOG -->/r update_content.tmp' README.md
+          rm update_content.tmp
+
           echo "new_version=$TAG_NAME" >> $GITHUB_OUTPUT
           total_time=$(( $(date +%s) - start_time ))
           log "INFO" "版本检测耗时: ${total_time}秒"
