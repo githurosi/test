@@ -33,13 +33,13 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: 预安装依赖（精简版）
+      - name: 预安装依赖
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq jq
 
-      # 2. 版本检测引擎（增强版）
-      - name: 检查Worker版本并准备日志
+      # 2. 版本检测与日志生成
+      - name: 检查Worker版本并格式化日志
         id: version_check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -80,15 +80,20 @@ jobs:
           # 准备更新元数据
           log "INFO" "检测到新版本: $TAG_NAME"
           echo "$TAG_NAME" > version.txt
-          echo "$RELEASE_NOTES" > changelog.md
           
-          # 生成README更新内容
+          # 生成格式化日志内容
           cat > update_content.tmp <<EOF
-          # 项目更新日志
+          # 🎉 项目更新日志
           
-          \`\`\`markdown
-          $(echo "$RELEASE_NOTES" | sed -E 's/(#+ \[[0-9.]+\])/## \1/g' | head -n 8)
-          \`\`\`
+          ## 最新版本：$TAG_NAME
+          **发布时间**：$(date +'%Y-%m-%d %H:%M:%S')
+          
+          $(echo "$RELEASE_NOTES" | sed 's/^/- /g' | head -n 8)
+          
+          ---
+          
+          **历史更新**：
+          - [查看完整日志](./changelog.md)
           EOF
 
           # 安全更新README.md
@@ -134,7 +139,7 @@ jobs:
             --domain-lock 'your-domain.com'
           mv _worker.obfuscated.js _worker.js
 
-      # 4. 统一提交变更（增强版）
+      # 4. 统一提交变更
       - name: 提交所有变更
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
