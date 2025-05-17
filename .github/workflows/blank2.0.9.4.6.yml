@@ -95,7 +95,7 @@ jobs:
           - [查看完整日志](./changelog.md)
           EOF
 
-          # 安全更新README.md（终极初始化方案）
+          # 安全更新README.md（终极解决方案）
           if [ ! -f "README.md" ]; then
             log "INFO" "正在初始化README.md文件..."
             {
@@ -109,8 +109,14 @@ jobs:
             chmod +w README.md 2>/dev/null || true
           fi
 
-          # 使用sed进行安全替换
-          sed -i '/<!-- UPDATE_LOG -->/r update_content.tmp' README.md
+          # 使用cat进行安全的内容追加
+          {
+            echo ""
+            echo "<!-- BEGIN_AUTO_UPDATE -->"
+            cat update_content.tmp
+            echo "<!-- END_AUTO_UPDATE -->"
+          } >> README.md
+
           rm update_content.tmp
 
           echo "new_version=$TAG_NAME" >> $GITHUB_OUTPUT
