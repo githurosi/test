@@ -33,9 +33,27 @@ jobs:
           fetch-depth: 0
           path: worker-repo
 
-      - name: 预安装依赖
+      - name: 预安装依赖（加速版）
         run: |
-          sudo apt-get update && sudo apt-get install -y pigz jq
+          # 配置阿里云镜像源
+          echo "deb http://mirrors.aliyun.com/ubuntu/ focal main restricted universe multiverse" | sudo tee /etc/apt/sources.list
+          echo "deb http://mirrors.aliyun.com/ubuntu/ focal-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+          echo "deb http://mirrors.aliyun.com/ubuntu/ focal-backports main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+          echo "deb http://mirrors.aliyun.com/ubuntu/ focal-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
+          
+          # 加速配置
+          echo 'Acquire::ForceIPv4 "true";' | sudo tee /etc/apt/apt.conf.d/99force-ipv4
+          echo 'APT::Acquire::Retries "3";' | sudo tee -a /etc/apt/apt.conf.d/99force-ipv4
+          
+          # 静默安装依赖
+          sudo apt-get update -yqq
+          sudo apt-get install -y -qq pigz jq
+          
+          # 验证安装结果
+          echo "pigz版本: $(pigz -V)"
+          echo "jq版本: $(jq --version)"
+
+          # 安装javascript-obfuscator（保持原有逻辑）
           npm install -g javascript-obfuscator@4.0.0
 
       - name: 检查并准备更新
@@ -139,21 +157,21 @@ jobs:
             --dead-code-injection-threshold 0.5 \
             --identifier-names-generator mangled \
             --string-array true \
-            --string-array-encoding 'rc4' \
+            --string-array-encoding 'rc4
             --string-array-threshold 0.75 \
             --transform-object-keys true \
             --self-defending true \
             --domain-lock 'your-domain.com'
           
           mv _worker.obfuscated.js _worker.js
-
+ 
       - name: 验证与提交
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           repository: worker-repo
           commit_message: |
             🔄 自动同步并混淆Worker文件 [跳过CI]
-            
+             
             更新版本: ${{ steps.update.outputs.new_version }}
             更新内容：
             $(cat changelog.md | head -n 5 | sed 's/^/    /')
