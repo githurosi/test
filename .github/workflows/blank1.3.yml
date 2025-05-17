@@ -12,7 +12,8 @@ on:  # 触发配置开启
         description: 'Force immediate sync'  # 强制同步
         type: boolean  # 参数类型
         default: false  # 默认值
-   #标签同步代码
+        
+#标签同步代码
 - name: Sync Latest Version Tag
   id: sync-version-tag
   env:
