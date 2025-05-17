@@ -104,10 +104,10 @@ jobs:
               echo "<!-- UPDATE_LOG -->"
               echo "<!-- 最新更新将显示在此处 -->"
             } > README.md
+          else
+            # 确保文件可写
+            chmod +w README.md 2>/dev/null || true
           fi
-
-          # 确保文件可写
-          chmod +w README.md 2>/dev/null || true
 
           # 使用sed进行安全替换
           sed -i '/<!-- UPDATE_LOG -->/r update_content.tmp' README.md
