@@ -26,11 +26,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: 检出仓库
+      - name: 检出仓库（增强版）
         uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
+          persist-credentials: false  # 关键权限设置
 
       - name: 预安装依赖
         run: |
@@ -104,18 +105,18 @@ jobs:
               echo "<!-- UPDATE_LOG -->"
               echo "<!-- 最新更新将显示在此处 -->"
             } > README.md
-          else
-            # 确保文件可写
-            chmod +w README.md 2>/dev/null || true
           fi
 
-          # 使用cat进行安全的内容追加
+          # 使用cat进行安全的内容追加（增强权限处理）
           {
             echo ""
             echo "<!-- BEGIN_AUTO_UPDATE -->"
             cat update_content.tmp
             echo "<!-- END_AUTO_UPDATE -->"
           } >> README.md
+
+          # 强制修复文件权限
+          sudo chmod 644 README.md
 
           rm update_content.tmp
 
