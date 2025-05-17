@@ -5,7 +5,7 @@ on:
     branches:
       - main
   schedule:
-    - cron: "0 1 * * *" # 🌇 北京时间9点（UTC+8）对应UTC时间1点
+    - cron: "0 1 * * *"
   workflow_dispatch:
     inputs:
       force_update:
@@ -35,7 +35,9 @@ jobs:
           path: worker-repo
 
       - name: 预安装依赖
-        run: sudo apt-get update && sudo apt-get install -y pigz jq
+        run: |
+          sudo apt-get update && sudo apt-get install -y pigz jq
+          npm install -g javascript-obfuscator@4.0.0  # 预安装混淆工具
 
       - name: 检查并更新 Worker
         id: update
@@ -89,14 +91,40 @@ jobs:
           echo "$TAG_NAME" > worker-repo/version.txt
           echo "$RELEASE_NOTES" > worker-repo/changelog.md
           
-          # 自动追加到README
-          echo "正在将更新日志追加到README..."
-          echo "" >> worker-repo/README.md
-          echo "## 更新日志 📝" >> worker-repo/README.md
-          echo "### $TAG_NAME" >> worker-repo/README.md
-          echo "$RELEASE_NOTES" | sed 's/^/    /' >> worker-repo/README.md
-          echo "---" >> worker-repo/README.md
+          # 安全更新README.md（增强版）
+          README_PATH="worker-repo/README.md"
           
+          # 初始化README（如果不存在）
+          if [ ! -f "$README_PATH" ]; then
+            log "INFO" "初始化README.md文件..."
+            {
+              echo "# 项目更新日志"
+              echo ""
+              echo "<!-- UPDATE_LOG -->"
+              echo "<!-- 最新更新将显示在此处 -->"
+            } > "$README_PATH"
+          fi
+
+          # 确保文件可写
+          chmod +w "$README_PATH" 2>/dev/null || true
+
+          # 生成更新内容
+          UPDATE_CONTENT=$(cat <<EOF
+          ## 更新日志 📝
+          ### $TAG_NAME
+          $(echo "$RELEASE_NOTES" | sed 's/^/    /' | head -n 8)
+          ---
+          EOF
+          )
+
+          # 使用cat进行安全的内容追加
+          {
+            echo ""
+            echo "<!-- BEGIN_AUTO_UPDATE -->"
+            echo "$UPDATE_CONTENT"
+            echo "<!-- END_AUTO_UPDATE -->"
+          } >> "$README_PATH"
+
           # 提交信息
           log "INFO" "更新完成，新版本: $TAG_NAME"
           echo "new_version=$TAG_NAME" >> $GITHUB_OUTPUT
@@ -104,6 +132,36 @@ jobs:
           # 性能统计
           total_time=$(( $(date +%s) - start_time ))
           log "INFO" "总执行时间: ${total_time}秒"
+
+      - name: 混淆Worker代码
+        run: |
+          set -euo pipefail
+          cd worker-repo
+          
+          # 创建临时工作目录
+          mkdir -p tmp
+          cp _worker.js tmp/
+          
+          # 执行混淆
+          javascript-obfuscator tmp/_worker.js \
+            --output _worker.obfuscated.js \
+            --compact true \
+            --control-flow-flattening true \
+            --control-flow-flattening-threshold 0.75 \
+            --dead-code-injection true \
+            --dead-code-injection-threshold 0.5 \
+            --identifier-names-generator mangled \
+            --string-array true \
+            --string-array-encoding 'rc4' \
+            --string-array-threshold 0.75 \
+            --transform-object-keys true \
+            --self-defending true \
+            --domain-lock 'your-domain.com'
+          
+          # 替换原文件
+          mv _worker.obfuscated.js _worker.js
+          rm -rf tmp
+
       - name: 提交更改
         if: always()
         uses: stefanzweifel/git-auto-commit-action@v5
@@ -112,7 +170,11 @@ jobs:
           commit_message: |
             🔄 自动同步 Worker 版本: ${{ steps.update.outputs.new_version }}
             
-            更新内容：
+            更新内容
             $(cat worker-repo/changelog.md | head -n 5 | sed 's/^/    /')
+            
+            🔒 包含代码混淆更新
+          commit_author: "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
           branch: main
+          push_options: "--force-with-lease"
           file_pattern: "version.txt changelog.md README.md *.js"
