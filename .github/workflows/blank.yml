@@ -1,122 +1,120 @@
-名称：自动更新工作程序  # 工作流名称
+名称：自动更新工作程序
 
-开：  # 触发条件配置
-  推送：  # 推送事件触发
+开：
+  推送：
     分支：
-      - 主要  # 仅监听main分支的推送
-  时间表：  # 定时任务配置
-    - cron： “0 1 * * *”  # 每天UTC时间1点执行（北京时间9点）
-  workflow_dispatch：  # 手动触发配置
+      - 主要
+  时间表：
+    - cron： “0 1 * * *” # 🌇 北京时间9点（UTC+8）对应UTC时间1点
+  workflow_dispatch：
     输入：
-      force_update：  # 手动触发时可指定参数
-        description： '是否强制更新（忽略版本检查）'  # 参数说明
+      force_update：
+        description： '是否强制更新（忽略版本检查）'
         类型：布尔值
-        默认值：False  # 默认不强制更新
+        默认值：False
 
-权限：  # 权限配置
-  内容： 写入  # 允许推送代码到仓库
-  id-token：写入  # 允许使用OIDC身份验证
+权限：
+  内容： 写入
+  id-token：写入
 
-并发：  # 并发控制
-  组： ${{ github.workflow }}-${{ github.ref }}  # 按工作流+分支分组
-  正在取消：true  # 新运行自动取消同组旧运行
+并发：
+  组： ${{ github.workflow }}-${{ github.ref }}
+  正在取消：true
 
-工作机会：  # 作业定义
-  更新：  # 作业名称
-    运行时间：ubuntu-latest  # 使用最新Ubuntu环境
-    超时分钟数：5  # 作业超时时间
-    输出：  # 作业输出
-      new_version： ${{ steps.update.outputs.new_version }}  # 输出新版本号
-    步骤：  # 作业步骤
-      - 名称： 检出仓库  # 步骤1：检出仓库
-        用途：作/checkout@v4  # 使用官方checkout动作v4版本
-        替换为：  # 自定义参数
-          获取深度：1  # 仅获取最新提交
-          路径： worker-repo  # 检出到指定目录
+工作机会：
+  更新：
+    运行时间：ubuntu-latest
+    超时分钟数：5
+    输出：
+      new_version： ${{ steps.update.outputs.new_version }}
+    步骤：
+      - 名称： 检出仓库
+        用途：作/checkout@v4
+        替换为：
+          获取深度：1
+          路径： worker-repo
 
-      - name： 预安装依赖  # 步骤2：安装系统依赖
-        运行： |  # 执行多行命令
-sudo apt-get 更新  # 更新APT包列表
-sudo apt-get install -y pigz jq translate-shell  # 安装并行gzip、JSON处理器、翻译工具
-
-      - name： 检查并更新 Worker  # 步骤3：核心更新逻辑
-        ID：更新  # 步骤标识符
-        环境：  # 环境变量
-          GITHUB_TOKEN：${{ secrets。GITHUB_TOKEN }}  # 使用仓库的访问令牌
-        运行： |  # 执行多行shell脚本
-设置 -euo pipefail  # 设置严格错误处理模式
-start_time=$（日期 +%s）  # 记录开始时间戳
+      - name： 预安装依赖
+        运行： |
+sudo apt-get 更新
+sudo apt-get install -y pigz jq translate-shell
+      - name： 检查并更新 Worker
+        ID：更新
+        环境：
+          GITHUB_TOKEN：${{ secrets。GITHUB_TOKEN }}
+        运行： |
+设置 -euo pipefail
+start_time=$（日期 +%s）
           
-日志（） {  # 定义日志函数
-本地级别 = $1  # 接收日志级别参数
-转变  # 切换到worker-repo目录
-echo “[$（date +'%Y-%m-%d %H：%M：%S'）] [$level] $@”  # 格式化输出日志
+日志（） {
+本地级别 = $1
+转变
+echo “[$（date +'%Y-%m-%d %H：%M：%S'）] [$level] $@”
           }
           
 # 初始化变量
-FORCE_UPDATE=${{ inputs.force_update }}  # 获取手动触发参数
-LOCAL_VERSION=$（cat worker-repo/version.txt 2>/dev/null || echo “”）  # 读取本地版本号
-log “INFO” “开始检查更新...”  # 记录开始日志
-log “DEBUG” “本地版本： ${LOCAL_VERSION：-无}”  # 调试日志
+FORCE_UPDATE=${{ inputs.force_update }}
+LOCAL_VERSION=$（cat worker-repo/version.txt 2>/dev/null || echo “”）
+log “INFO” “开始检查更新...”
+log “DEBUG” “本地版本： ${LOCAL_VERSION：-无}”
           
 # 获取最新版本
-REPO_URL=“https://api.github.com/repos/bia-pain-bache/BPB-Worker-Panel/releases”  # 仓库API地址
-响应=$（curl -s --retry 3 \  # 静默模式curl，重试3次
--H “授权：token $GITHUB_TOKEN” \  # 携带认证头
--H “接受：application/vnd.github.v3+json” \  # 指定API版本
-“$REPO_URL”）  # 请求最新发布信息
+REPO_URL=“https://api.github.com/repos/bia-pain-bache/BPB-Worker-Panel/releases”
+响应=$（curl -s --retry 3 \
+-H “授权：token $GITHUB_TOKEN” \
+-H “接受：application/vnd.github.v3+json” \
+“$REPO_URL”）
           
 # 解析版本信息
-TAG_NAME=$（echo “$RESPONSE” | jq -r '.[0].tag_name'）  # 提取最新标签名
-DOWNLOAD_URL=$（echo “$RESPONSE” | jq -r '.[0].assets[] |select（.name == “worker.zip”） | .browser_download_url'）  # 查找指定资产下载地址
-RELEASE_NOTES=$（echo “$RESPONSE” | jq -r '.[0].body'）  # 获取发布说明
+TAG_NAME=$（echo “$RESPONSE” | jq -r '.[0].tag_name'）
+DOWNLOAD_URL=$（echo “$RESPONSE” | jq -r '.[0].assets[] |select（.name == “worker.zip”） | .browser_download_url'）
+RELEASE_NOTES=$（echo “$RESPONSE” | jq -r '.[0].body'）
           
 # 版本比较
-if [ “$LOCAL_VERSION” = “$TAG_NAME” ] & & [ “$FORCE_UPDATE” ！= “true” ];然后  # 版本相同且非强制更新时跳过
-log “INFO” “已是最新版本，无需更新”  # 记录无需更新日志
-echo “new_version=$LOCAL_VERSION” >> $GITHUB_OUTPUT  # 输出当前版本号
-出口 0  # 正常退出
+if [ “$LOCAL_VERSION” = “$TAG_NAME” ] & & [ “$FORCE_UPDATE” ！= “true” ];然后
+log “INFO” “已是最新版本，无需更新”
+echo “new_version=$LOCAL_VERSION” >> $GITHUB_OUTPUT
+出口 0
 fi
           
 # 准备更新内容
-log “INFO” “检测到新版本： $TAG_NAME”  # 记录发现新版本
-log “INFO” “正在翻译更新日志...”  # 记录翻译开始
+log “INFO” “检测到新版本： $TAG_NAME”
+log “INFO” “正在翻译更新日志...”
           
 # 翻译更新日志
-TRANSLATED_NOTES=$（echo “$RELEASE_NOTES” | trans -b -e google -t zh-CN）  # 使用谷歌引擎翻译成中文
+TRANSLATED_NOTES=$（echo “$RELEASE_NOTES” | trans -b -e google -t zh-CN）
           
 # 生成Markdown格式内容
-FORMATTED_NOTES=$（echo “$TRANSLATED_NOTES” | sed 's/^/ /'）  # 添加缩进格式
+FORMATTED_NOTES=$（echo “$TRANSLATED_NOTES” | sed 's/^/ /'）
           
 # 更新文件
-echo “$TAG_NAME” > worker-repo/version.txt  # 更新版本文件
-echo “$TRANSLATED_NOTES” > worker-repo/changelog.md  # 保存翻译后的更新日志
+echo “$TAG_NAME” > worker-repo/version.txt
+echo “$TRANSLATED_NOTES” > worker-repo/changelog.md
           
 # 自动追加到README
-echo “正在将更新日志追加到README...”  # 记录操作
-echo “” >> worker-repo/README.md  # 添加空行
-echo “## 更新日志 📝 ” >> worker-repo/README.md  # 添加标题
-echo “### $TAG_NAME” >> worker-repo/README.md  # 添加版本标题
-echo “$FORMATTED_NOTES” >> worker-repo/README.md  # 添加格式化内容
-echo “---” >> worker-repo/README.md  # 添加分隔线
+echo “正在将更新日志追加到README...”
+echo “” >> worker-repo/README.md
+echo “## 更新日志 📝 ” >> worker-repo/README.md
+echo “### $TAG_NAME” >> worker-repo/README.md
+echo “$FORMATTED_NOTES” >> worker-repo/README.md
+echo “---” >> worker-repo/README.md
           
 # 提交信息
-log “INFO” “更新完成，新版本： $TAG_NAME”  # 记录更新完成
-echo “new_version=$TAG_NAME” >> $GITHUB_OUTPUT  # 输出新版本号
+log “INFO” “更新完成，新版本： $TAG_NAME”
+echo “new_version=$TAG_NAME” >> $GITHUB_OUTPUT
           
 # 性能统计
-total_time=$（（ $（date +%s） - start_time ））  # 计算总耗时
-log “INFO” “总执行时间： ${total_time}秒”  # 输出性能统计
-
-      - name： 提交更改  # 步骤4：自动提交更改
-        如果： always（）  # 无论前序步骤成功与否都执行
-        用途： stefanzweifel/git-auto-commit-action@v5  # 使用自动提交动作v5版本
-        替换为：  # 自定义参数
-          仓库： worker-repo  # 指定工作目录
-          commit_message： |  # 提交信息模板
-🔄 自动同步 Worker 版本： ${{ steps.update.outputs.new_version }}  # 提交标题
+total_time=$（（ $（date +%s） - start_time ））
+log “INFO” “总执行时间： ${total_time}秒”
+      - name： 提交更改
+        如果： always（）
+        用途： stefanzweifel/git-auto-commit-action@v5
+        替换为：
+          仓库： worker-repo
+          commit_message： |
+🔄 自动同步 Worker 版本： ${{ steps.update.outputs.new_version }}
             
-更新内容：  # 提交正文
-$（cat worker-repo/changelog.md | head -n 5 | sed 's/^/ /'）  # 显示更新日志前5行
-          分支：main  # 指定目标分支
-          file_pattern：“version.txt changelog.md README.md *.js”  # 监控文件模式
+更新内容：
+$（cat worker-repo/changelog.md | head -n 5 | sed 's/^/ /'）
+          分支：main
+          file_pattern：“version.txt changelog.md README.md *.js”
