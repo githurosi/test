@@ -35,12 +35,11 @@ jobs:
 
       - name: 预安装依赖（精简版）
         run: |
-          # 仅保留必要依赖
           sudo apt-get update -qq
           sudo apt-get install -y -qq jq
 
-      # 2. 版本检测引擎（来自代码2）
-      - name: 检查Worker版本
+      # 2. 版本检测引擎（增强版）
+      - name: 检查Worker版本并提取日志
         id: version_check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -81,24 +80,34 @@ jobs:
           # 准备更新元数据
           log "INFO" "检测到新版本: $TAG_NAME"
           echo "$TAG_NAME" > version.txt
-          echo "$RELEASE_NOTES" > changelog.md
+          
+          # 提取格式化日志（新增功能）
+          FORMATTED_LOG=$(echo "$RELEASE_NOTES" | sed -E 's/(#+ \[[0-9.]+\])/## \1/g' | head -n 8)
+          echo "$FORMATTED_LOG" > changelog.md
+          
+          # 生成主页内容（新增功能）
+          cat > index.md <<EOF
+          # 最新更新日志
+          
+          ## 版本 $TAG_NAME
+          
+          $(echo "$FORMATTED_LOG" | sed 's/^/    /')
+          
+          [查看完整更新历史](README.md)
+          EOF
+          
           echo "new_version=$TAG_NAME" >> $GITHUB_OUTPUT
           
           # 性能统计
           total_time=$(( $(date +%s) - start_time ))
           log "INFO" "版本检测耗时: ${total_time}秒"
 
-      # 3. 条件触发混淆流程（仅当有更新时执行）
+      # 3. 条件触发混淆流程
       - name: 执行混淆更新
         if: steps.version_check.outputs.new_version != '0.0.0'
         run: |
-          # 安装混淆工具（保持原有逻辑）
           npm install -g javascript-obfuscator@4.0.0
-          
-          # 模拟Worker文件（实际应从外部源获取）
           echo 'console.log("Worker文件内容");' > _worker.js
-          
-          # 执行混淆（保持原有配置）
           javascript-obfuscator _worker.js \
             --output _worker.obfuscated.js \
             --compact true \
@@ -113,10 +122,9 @@ jobs:
             --transform-object-keys true \
             --self-defending true \
             --domain-lock 'your-domain.com'
-          
           mv _worker.obfuscated.js _worker.js
 
-      # 4. 统一提交变更
+      # 4. 统一提交变更（增强版）
       - name: 提交所有变更
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
@@ -129,5 +137,5 @@ jobs:
           commit_author: "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
           branch: main
           push_options: "--force-with-lease"
-          file_pattern: "version.txt changelog.md *.js"
+          file_pattern: "version.txt changelog.md *.js index.md"
           skip_fetch: true
