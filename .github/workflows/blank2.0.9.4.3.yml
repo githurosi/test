@@ -26,7 +26,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      # 1. 基础环境准备
       - name: 检出仓库
         uses: actions/checkout@v4
         with:
@@ -38,8 +37,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq jq
 
-      # 2. 版本检测与日志生成
-      - name: 检查Worker版本并格式化日志
+      - name: 检查Worker版本并初始化日志
         id: version_check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -80,8 +78,9 @@ jobs:
           # 准备更新元数据
           log "INFO" "检测到新版本: $TAG_NAME"
           echo "$TAG_NAME" > version.txt
+          echo "$RELEASE_NOTES" >> changelog.md
           
-          # 生成格式化日志内容
+          # 生成格式化日志内容（增强版）
           cat > update_content.tmp <<EOF
           # 🎉 项目更新日志
           
@@ -96,7 +95,14 @@ jobs:
           - [查看完整日志](./changelog.md)
           EOF
 
-          # 安全更新README.md
+          # 安全更新README.md（增强初始化逻辑）
+          if [ ! -f "README.md" ]; then
+            log "INFO" "初始化README.md文件"
+            touch README.md
+            echo "# 项目更新日志" > README.md
+            echo "" >> README.md
+          fi
+
           if [ -s update_content.tmp ]; then
             [ ! -w README.md ] && sudo chmod +w README.md
             cp README.md README.md.bak || exit 1
@@ -117,7 +123,6 @@ jobs:
           total_time=$(( $(date +%s) - start_time ))
           log "INFO" "版本检测耗时: ${total_time}秒"
 
-      # 3. 条件触发混淆流程（保持原有逻辑）
       - name: 执行混淆更新
         if: steps.version_check.outputs.new_version != '0.0.0'
         run: |
@@ -139,7 +144,6 @@ jobs:
             --domain-lock 'your-domain.com'
           mv _worker.obfuscated.js _worker.js
 
-      # 4. 统一提交变更
       - name: 提交所有变更
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
