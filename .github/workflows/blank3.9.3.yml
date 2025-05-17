@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       force_update:
-        description: '强制更新模式'
+        description: '强制更新模式（跳过缓存，强制混淆）'
         required: false
         type: boolean
         default: false
@@ -27,7 +27,8 @@ jobs:
           cd worker-repo
           git checkout main
 
-      - name: 缓存 npm 依赖
+      - name: 缓存 npm 依赖（强制更新模式跳过缓存）
+        if: ${{ !github.event.inputs.force_update }}
         uses: actions/cache@v3
         with:
           path: ~/.npm
@@ -44,7 +45,6 @@ jobs:
 
       - name: 混淆 Worker 代码（条件执行）
         id: obfuscate
-        if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.force_update == 'true') || github.event_name == 'schedule' }}
         run: |
           set -euo pipefail
           cd worker-repo
