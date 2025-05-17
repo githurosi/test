@@ -26,19 +26,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      # 1. 基础环境准备
       - name: 检出仓库
         uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
 
-      - name: 预安装依赖（精简版）
+      - name: 预安装依赖
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq jq
 
-      # 2. 版本检测引擎（增强版）
       - name: 检查Worker版本并更新日志
         id: version_check
         env:
@@ -82,8 +80,10 @@ jobs:
           echo "$TAG_NAME" > version.txt
           echo "$RELEASE_NOTES" > changelog.md
           
-          # 生成README更新内容（新增功能）
+          # 生成格式化日志
           FORMATTED_LOG=$(echo "$RELEASE_NOTES" | sed -E 's/(#+ \[[0-9.]+\])/## \1/g' | head -n 8)
+          
+          # 创建临时更新文件
           cat > update_content.tmp <<EOF
           ## 最新更新 ($TAG_NAME)
           
@@ -92,51 +92,45 @@ jobs:
           \`\`\`
           EOF
 
-          # 安全更新README.md（新增功能）
+          # 安全更新README.md（增强版）
           if [ -s update_content.tmp ]; then
-            cp README.md README.md.bak
+            # 检查文件权限
+            if [ ! -w README.md ]; then
+              log "ERROR" "README.md 文件不可写，尝试修复权限"
+              sudo chmod +w README.md
+            fi
+            
+            # 创建备份
+            cp README.md README.md.bak || log "ERROR" "备份创建失败"
+            
+            # 执行awk更新
             awk '
               /<!-- UPDATE_LOG -->/ {
                 print
                 print "<!-- BEGIN_AUTO_UPDATE -->"
-                system("cat update_content.tmp")
+                while (getline line < "update_content.tmp") {
+                  print line
+                }
                 print "<!-- END_AUTO_UPDATE -->"
                 next
               }
               { print }
-            ' README.md.bak > README.md
+            ' README.md.bak > README.md || log "ERROR" "awk更新失败"
+            
+            # 清理临时文件
             rm update_content.tmp README.md.bak
           fi
           
           echo "new_version=$TAG_NAME" >> $GITHUB_OUTPUT
           
-          # 性能统计
           total_time=$(( $(date +%s) - start_time ))
-          log "INFO" "版本检测耗时: ${total_time}秒"
+          log "INFO" "总执行时间: ${total_time}秒"
 
-      # 3. 条件触发混淆流程（仅当有更新时执行）
-      - name: 执行混淆更新
-        if: steps.version_check.outputs.new_version != '0.0.0'
+      - name: 执行混淆更新（已禁用）
+        if: false
         run: |
-          npm install -g javascript-obfuscator@4.0.0
-          echo 'console.log("Worker文件内容");' > _worker.js
-          javascript-obfuscator _worker.js \
-            --output _worker.obfuscated.js \
-            --compact true \
-            --control-flow-flattening true \
-            --control-flow-flattening-threshold 0.75 \
-            --dead-code-injection true \
-            --dead-code-injection-threshold 0.5 \
-            --identifier-names-generator mangled \
-            --string-array true \
-            --string-array-encoding 'rc4' \
-            --string-array-threshold 0.75 \
-            --transform-object-keys true \
-            --self-defending true \
-            --domain-lock 'your-domain.com'
-          mv _worker.obfuscated.js _worker.js
+          echo "混淆流程已从主工作流移除"
 
-      # 4. 统一提交变更（增强版）
       - name: 提交所有变更
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
@@ -145,9 +139,9 @@ jobs:
             
             版本: ${{ steps.version_check.outputs.new_version }}
             更新内容：
-            $(cat changelog.md | head -n 5 | sed 's/^/    /')
+            $(cat changelog.md 2>/dev/null | head -n 5 | sed 's/^/    /')
           commit_author: "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
           branch: main
           push_options: "--force-with-lease"
-          file_pattern: "version.txt changelog.md *.js README.md"
+          file_pattern: "version.txt changelog.md README.md"
           skip_fetch: true
