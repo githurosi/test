@@ -37,7 +37,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq jq
 
-      - name: 检查Worker版本并同步日志
+      - name: 检查Worker版本并初始化日志
         id: version_check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -78,52 +78,40 @@ jobs:
           # 准备更新元数据
           log "INFO" "检测到新版本: $TAG_NAME"
           echo "$TAG_NAME" > version.txt
-          echo "$RELEASE_NOTES" >> changelog.md  # 追加到日志文件
+          echo "$RELEASE_NOTES" >> changelog.md
           
-          # 生成完整日志内容
+          # 生成完整日志内容（增强格式化）
           FULL_LOG=$(cat changelog.md | sed -E 's/(#+ \[[0-9.]+\])/## \1/g' | awk '{print "    " $0}')
           
-          # 创建临时更新文件
-          cat > update_content.tmp <<EOF
-          ## 完整更新日志
+          # 创建初始README内容
+          cat > README.md <<EOF
+          # 项目更新日志
+          
+          <!-- CHANGELOG -->
+          <!-- 完整更新日志将显示在此处 -->
           
           \`\`\`markdown
           $(echo "$FULL_LOG")
           \`\`\`
           EOF
 
-          # 安全更新README.md（增强版）
-          if [ -s update_content.tmp ]; then
-            # 检查文件权限
-            [ ! -w README.md ] && sudo chmod +w README.md
-            
-            # 创建备份
-            cp README.md README.md.bak
-            
-            # 执行awk更新
-            awk '
-              /<!-- CHANGELOG -->/ {
-                print
-                print "<!-- BEGIN_AUTO_CHANGELOG -->"
-                while (getline line < "update_content.tmp") {
-                  print line
-                }
-                print "<!-- END_AUTO_CHANGELOG -->"
-                next
-              }
-              { print }
-            ' README.md.bak > README.md
-            
-            # 清理临时文件
-            rm update_content.tmp README.md.bak
-          fi
-          
           echo "new_version=$TAG_NAME" >> $GITHUB_OUTPUT
           
           total_time=$(( $(date +%s) - start_time ))
           log "INFO" "总执行时间: ${total_time}秒"
 
-      - name: 提交所有变更
+      - name: 提交初始文件（当首次运行时）
+        if: ${{ !exists('README.md') }}
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "🎉 初始化项目：创建README.md和版本文件"
+          commit_author: "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+          branch: main
+          file_pattern: "README.md version.txt changelog.md"
+          skip_fetch: true
+
+      - name: 提交常规更新
+        if: ${{ always() && steps.version_check.outputs.new_version != '0.0.0' }}
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: |
