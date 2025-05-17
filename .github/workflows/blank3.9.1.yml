@@ -12,10 +12,6 @@ on:
         description: '强制更新（覆盖所有检查）'
         type: boolean
         default: false
-      rebuild_readme:
-        description: '重建README（保留版本历史）'
-        type: boolean
-        default: false
 
 permissions:
   contents: write
@@ -60,17 +56,18 @@ jobs:
           
           # 初始化变量
           FORCE_UPDATE=${{ inputs.force_update }}
-          REBUILD_README=${{ inputs.rebuild_readme }}
           LOCAL_VERSION=$(cat worker-repo/version.txt 2>/dev/null || echo "")
           log "INFO" "开始检查更新..."
           log "DEBUG" "本地版本: ${LOCAL_VERSION:-无}"
           
-          # 新增：README完整性检查
-          README_PATH="worker-repo/README.md"
-          if [ -f "$README_PATH" ] && ! grep -q "## 📅 最新更新：" "$README_PATH"; then
-            log "WARN" "检测到README格式异常，触发重建流程"
-            REBUILD_README=true
-          fi
+          # 新增：关键文件检查
+          MISSING_CRITICAL_FILES="false"
+          for file in worker-repo/version.txt worker-repo/changelog.md; do
+            if [ ! -f "$file" ]; then
+              log "WARN" "检测到关键文件缺失: $file"
+              MISSING_CRITICAL_FILES="true"
+            fi
+          done
 
           # 获取最新版本
           REPO_URL="https://api.github.com/repos/bia-pain-bache/BPB-Worker-Panel/releases"
@@ -88,7 +85,7 @@ jobs:
           UPDATE_CONDITION="false"
           if [ "$FORCE_UPDATE" = "true" ]; then
             UPDATE_CONDITION="true"
-          elif [ "$REBUILD_README" = "true" ]; then
+          elif [ "$MISSING_CRITICAL_FILES" = "true" ]; then
             UPDATE_CONDITION="true"
           elif [ "$LOCAL_VERSION" != "$TAG_NAME" ]; then
             UPDATE_CONDITION="true"
@@ -111,7 +108,7 @@ jobs:
 
           # 准备更新内容
           log "INFO" "检测到更新需求，开始处理..."
-          log "INFO" "更新类型：${FORCE_UPDATE:-$REBUILD_README:-常规更新}"
+          log "INFO" "更新类型：${FORCE_UPDATE:-$MISSING_CRITICAL_FILES:-常规更新}"
           
           # 下载更新并解压到根目录
           wget -q -O worker.zip "$DOWNLOAD_URL"
@@ -123,9 +120,9 @@ jobs:
           echo "$RELEASE_NOTES" > worker-repo/changelog.md
           
           # 安全更新README.md（增强版）
-          # 初始化或重建逻辑
-          if [ ! -f "$README_PATH" ] || [ "$REBUILD_README" = "true" ]; then
-            log "INFO" "初始化/重建README.md文件..."
+          README_PATH="worker-repo/README.md"
+          if [ ! -f "$README_PATH" ] || [ "$MISSING_CRITICAL_FILES" = "true" ]; then
+            log "INFO" "初始化/重建核心文件..."
             {
               echo "# 项目更新日志"
               echo ""
@@ -158,10 +155,12 @@ jobs:
         run: |
           set -euo pipefail
           cd worker-repo
-
+          
+          # 创建临时工作目录
           mkdir -p tmp
           cp _worker.js tmp/
-
+          
+          # 执行混淆
           javascript-obfuscator tmp/_worker.js \
             --output _worker.obfuscated.js \
             --compact true \
@@ -176,7 +175,8 @@ jobs:
             --transform-object-keys true \
             --self-defending true \
             --domain-lock 'your-domain.com'
-
+          
+          # 替换原文件
           mv _worker.obfuscated.js _worker.js
           rm -rf tmp
 
@@ -187,10 +187,10 @@ jobs:
           repository: worker-repo
           commit_message: |
             🔄 自动同步 Worker 版本: ${{ steps.update.outputs.new_version }}
-
+            
             更新内容：
             $(cat worker-repo/changelog.md | head -n 5 | sed 's/^/    /')
-
+            
             ${{ inputs.force_update == 'true' && '🔄 强制更新模式' || '' }}
           commit_author: "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
           branch: main
