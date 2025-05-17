@@ -89,6 +89,14 @@ jobs:
           echo "$TAG_NAME" > worker-repo/version.txt
           echo "$RELEASE_NOTES" > worker-repo/changelog.md
           
+          # 自动追加到README
+          echo "正在将更新日志追加到README..."
+          echo "" >> worker-repo/README.md
+          echo "## 更新日志 📝" >> worker-repo/README.md
+          echo "### $TAG_NAME" >> worker-repo/README.md
+          echo "$RELEASE_NOTES" | sed 's/^/    /' >> worker-repo/README.md
+          echo "---" >> worker-repo/README.md
+          
           # 提交信息
           log "INFO" "更新完成，新版本: $TAG_NAME"
           echo "new_version=$TAG_NAME" >> $GITHUB_OUTPUT
@@ -107,4 +115,4 @@ jobs:
             更新内容：
             $(cat worker-repo/changelog.md | head -n 5 | sed 's/^/    /')
           branch: main
-          file_pattern: "version.txt changelog.md *.js"
+          file_pattern: "version.txt changelog.md README.md *.js"
