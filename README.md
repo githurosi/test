@@ -1,6 +1,6 @@
 # 项目更新日志
 
-## 📅 最新更新：v3.3.2
+## 📅 最新更新：v3.3.3
 
 - # Sanction Rules
 - 
@@ -47,7 +47,7 @@
 - - Changed Sing-box and Clash NTP servers to Cloudflare.
 - - Changed warp endpoint scanner to [BPB Warp Scanner](https://github.com/bia-pain-bache/BPB-Warp-Scanner)
 - - UI improvements
-- - Bug fix #877
+- - Bug fix #877 #884 #855
 - - Updated packages
 - - Refactored cores and some other bug fixes.
 
