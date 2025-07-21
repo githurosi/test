@@ -1,11 +1,11 @@
 # 项目更新日志
 
-## 📅 最新更新：v3.3.7
+## 📅 最新更新：v3.3.8
 
 - # ⚙️ Bug fixes and Improvements
 - 
-- - Fixed Warp PRO subscription #895.
-- - Updated docs.
+- - Revised DNS hijack in Xray and sing-box.
+- - Added scheduled build. The project will be built every 6 hourse to prevent Cloudflare 1101 errors.
 
 ---
 
