@@ -1,12 +1,11 @@
 # 项目更新日志
 
-## 📅 最新更新：v3.3.9
+## 📅 最新更新：v3.3.10
 
 - # ⚙️ Bug fixes and Improvements
 - 
-- - Revised DNS hijack in Xray and sing-box.
-- - Added scheduled build. The project will be built every 3 hourse to prevent Cloudflare 1101 errors.
-- - UI bug fix.
+- - Another attempt to bypass Cloudflare 1101 error #940
+- - Removed obfuscation
 
 ---
 
