@@ -1,10 +1,11 @@
 # 项目更新日志
 
-## 📅 最新更新：v3.3.12
+## 📅 最新更新：v3.3.13
 
 - # ⚙️ Bug fixes and Improvements
 - 
-- - Fixed Proxy IPv4 with custom port
+- - Added VLESS/Trojan fingerprint selection to panel
+- - Refactored
 
 ---
 
