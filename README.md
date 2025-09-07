@@ -1,12 +1,11 @@
 # 项目更新日志
 
-## 📅 最新更新：v3.4.5
+## 📅 最新更新：v3.4.6
 
 - # ⚙️ Bug fixes and Improvements
 - 
-- - Fixed missing IPv6 configs #1000
-- - Fixed WorkerLess malfunctioning with Fake DNS enabled
 - - Refactored
+- - Try to fix 1101 #987
 
 ---
 
