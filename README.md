@@ -1,6 +1,6 @@
 # 项目更新日志
 
-## 📅 最新更新：v3.5.5
+## 📅 最新更新：v3.5.6
 
 - # ⚙️ Bug fixes and Improvements
 - 
@@ -10,6 +10,7 @@
 - - Pruned some legacy clients from code
 - - UI improvements
 - - Refactored, code readability
+- - Panel bug fixes
 
 ---
 
