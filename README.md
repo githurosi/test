@@ -1,6 +1,6 @@
 # 项目更新日志
 
-## 📅 最新更新：v4.1.2
+## 📅 最新更新：v4.1.3
 
 - # 💡 Bug fixes & Improvements
 - 
@@ -20,6 +20,14 @@
 - - Fixed `ECH Server Name` bug #1224
 - - Fixed ECH query DNS if local DNS is set to `localhost`
 - - Fixed some typos, PR #1191
+- - Reverted back URL configs to panel as `Raw` subscription. None of panel settings apply to these configs as you know and also they consume more worker requests than `Normal` configs and won't perform as others. They're not recommended to use and connections issues will not be supported anymore, please use `Normal` configs instead.
+- 
+- > [!CAUTION]
+- > You have to manually set DoH as remote DNS in your clients and disable MUX to use `Raw` configs.
+- 
+- ---
+- 
+- ## 💡 Other tips
 - 
 - > [!NOTE]
 - > These days Fragment on some ISPs stopped working in Iran, you can change `Fragment packet` to `1-1` instead of `tlshello` and test, also you can try to change `Fragment mode` to bypass IR-GFW.
